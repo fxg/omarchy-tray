@@ -220,103 +220,59 @@ BarWidget {
     return item.tooltipTitle || item.title || item.id || ""
   }
 
-  // ---- 通用抽屉组件纳管引擎 (Universal Widget Drawer) ----
-  readonly property string drawerConfigFile: Quickshell.env("HOME") + "/.config/omarchy/tray_drawer.json"
-  property var customServicesDef: []
-
-  readonly property var defaultServicesDef: [
+  readonly property var extraServices: [
     {
-      "id": "bing-wallpaper",
-      "title": "Bing壁纸",
-      "tooltip": "Bing 壁纸",
-      "icon": "bing-wallpaper",
-      "enabled": true,
-      "onActivate": "omarchy-shell shell toggle io.github.odessa2.bing-wallpaper",
-      "onSecondary": "omarchy-shell bing-wallpaper refresh"
-    },
-    {
-      "id": "tailscale",
-      "title": "Tailscale",
-      "tooltip": "Tailscale",
-      "icon": "tailscale",
-      "enabled": true,
-      "onActivate": "foot --title='Tailscale Status' sh -c 'tailscale status; echo; read -n 1 -s -r -p "按任意键关闭..."'",
-      "onSecondary": "xdg-open https://login.tailscale.com/admin/machines"
-    },
-    {
-      "id": "syncthing",
-      "title": "Syncthing",
-      "tooltip": "Syncthing",
-      "icon": "syncthing",
-      "enabled": true,
-      "onActivate": "xdg-open http://127.0.0.1:8384",
-      "onSecondary": "xdg-open http://127.0.0.1:8384"
-    }
-  ]
-
-  FileView {
-    id: drawerConfigFileView
-    path: root.drawerConfigFile
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: {
-      try {
-        var raw = text()
-        if (raw && raw.trim().length > 0) {
-          var parsed = JSON.parse(raw)
-          if (Array.isArray(parsed)) {
-            root.customServicesDef = parsed
-            return
-          }
-        }
-      } catch (e) {
-        console.warn("fxg.tray: parse error in tray_drawer.json: " + e)
-      }
-      root.customServicesDef = root.defaultServicesDef
-    }
-    onLoadFailed: {
-      root.customServicesDef = root.defaultServicesDef
-    }
-  }
-
-  function createServiceItem(def) {
-    return {
-      id: String(def.id || "custom"),
-      title: String(def.title || def.id || ""),
-      tooltipTitle: String(def.tooltip || def.title || def.id || ""),
-      icon: String(def.icon || def.id || ""),
-      status: (def.enabled !== false) ? Status.Active : Status.Passive,
+      id: "bing-wallpaper",
+      title: "Bing Wallpaper",
+      tooltipTitle: "Bing Wallpaper",
+      icon: "bing-wallpaper",
+      status: Status.Active,
       activate: function() {
-        if (def.onActivate) {
-          Quickshell.execDetached(["sh", "-c", def.onActivate])
-        }
+        Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
       },
       secondaryActivate: function() {
-        if (def.onSecondary) {
-          Quickshell.execDetached(["sh", "-c", def.onSecondary])
-        } else if (def.onActivate) {
-          Quickshell.execDetached(["sh", "-c", def.onActivate])
-        }
+        Quickshell.execDetached(["omarchy-shell", "bing-wallpaper", "refresh"])
+      },
+      scroll: function(delta, reversed) {},
+      display: function(win, x, y) {},
+      onlyMenu: false,
+      menu: null
+    },
+    {
+      id: "tailscale",
+      title: "Tailscale",
+      tooltipTitle: "Tailscale",
+      icon: "tailscale",
+      status: Status.Active,
+      activate: function() {
+        Quickshell.execDetached(["foot", "--title=Tailscale Status", "sh", "-c", "tailscale status; echo; read -n 1 -s -r -p '按任意键关闭...'"])
+      },
+      secondaryActivate: function() {
+        Quickshell.execDetached(["xdg-open", "https://login.tailscale.com/admin/machines"])
+      },
+      scroll: function(delta, reversed) {},
+      display: function(win, x, y) {},
+      onlyMenu: false,
+      menu: null
+    },
+    {
+      id: "syncthing",
+      title: "Syncthing",
+      tooltipTitle: "Syncthing",
+      icon: "syncthing",
+      status: Status.Active,
+      activate: function() {
+        Quickshell.execDetached(["xdg-open", "http://127.0.0.1:8384"])
+      },
+      secondaryActivate: function() {
+        Quickshell.execDetached(["xdg-open", "http://127.0.0.1:8384"])
       },
       scroll: function(delta, reversed) {},
       display: function(win, x, y) {},
       onlyMenu: false,
       menu: null
     }
-  }
-
-  readonly property var extraServices: {
-    var list = []
-    var rawDefs = (root.customServicesDef && root.customServicesDef.length > 0)
-      ? root.customServicesDef : root.defaultServicesDef
-    for (var i = 0; i < rawDefs.length; i++) {
-      var d = rawDefs[i]
-      if (!d || d.enabled === false) continue
-      list.push(root.createServiceItem(d))
-    }
-    return list
-  }
+  ]
 
   function classifyItem(item) {
     var iid = String(item.id || "")
