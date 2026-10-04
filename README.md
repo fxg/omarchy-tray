@@ -183,19 +183,28 @@ omarchy restart shell
 }
 ```
 
-#### 3. 独立第三方 Omarchy 插件收纳（如 Bing 壁纸，左键切换面板，右键立即刷新）
+#### 3. 独立第三方 Omarchy 插件收纳（如 Bing 壁纸：左键呼出原生下拉面板，右键立即刷新）
 ```javascript
 {
   id: "bing-wallpaper",
   title: "Bing Wallpaper",
   tooltipTitle: "Bing Wallpaper",
   glyph: "\uf1c5", // 直接使用插件作者原装的相框图标
+  pluginId: "io.github.odessa2.bing-wallpaper", // 插件 ID（自动定位插件目录与服务）
+  panelSource: "Panel.qml",                     // 自动将原生下拉面板精准对齐托盘图标弹出
   status: Status.Active,
   activate: function() {
+    // 备用兜底调用
     Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
   },
   secondaryActivate: function() {
-    Quickshell.execDetached(["omarchy-shell", "bing-wallpaper", "refresh"])
+    // 优先通过 QML 服务实例零延迟触发刷新，备用走 IPC
+    var svc = root.resolvePluginService("io.github.odessa2.bing-wallpaper")
+    if (svc && typeof svc.refresh === "function") {
+      svc.refresh()
+    } else {
+      Quickshell.execDetached(["omarchy-shell", "-q", "bing-wallpaper", "refresh"])
+    }
   },
   scroll: function(delta, reversed) {},
   display: function(win, x, y) {},
@@ -203,6 +212,10 @@ omarchy restart shell
   menu: null
 }
 ```
+
+> [!TIP]
+> **插件下拉面板规范**：
+> 凡是声明了 `pluginId` 与 `panelSource`（如 `"Panel.qml"`）的收纳插件，左键点击托盘图标时，托盘宿主会自动加载该插件原生的 LayerShell 下拉面板，并将锚点精准对齐当前托盘图标；右键点击则优先执行 `secondaryActivate`（如刷新壁纸）或弹出原生菜单。
 
 ---
 

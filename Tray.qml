@@ -30,7 +30,11 @@ BarWidget {
   readonly property int drawerExtent: drawerCount > 0 ? drawerCount * trayItemExtent + (drawerCount - 1) * trayItemGap : 0
   // Match Waybar's group/tray-expander drawer transition-duration.
   readonly property int animationDuration: 600
-  property real revealProgress: expanded ? 1 : 0
+  readonly property bool panelOpen: pluginPanelLoader.item ? pluginPanelLoader.item.opened === true : false
+  readonly property bool panelOpenInDrawer: panelOpen && activePanelServiceItem !== null && classifyItem(activePanelServiceItem) === "drawer"
+  readonly property bool menuOpenInDrawer: trayMenuOpen && activeTrayItem !== null && classifyItem(activeTrayItem) === "drawer"
+  readonly property bool drawerActive: expanded || managePopupOpen || menuOpenInDrawer || panelOpenInDrawer
+  property real revealProgress: drawerActive ? 1 : 0
   readonly property real revealExtent: drawerExtent * revealProgress
 
   // Submenu drill-down state. QsMenuEntry.display() renders a *platform* menu,
@@ -112,9 +116,200 @@ BarWidget {
   function close() {
     managePopupOpen = false
     trayMenuOpen = false
+    if (pluginPanelLoader.item && typeof pluginPanelLoader.item.close === "function") {
+      pluginPanelLoader.item.close()
+    }
+  }
+
+  property var activePanelServiceItem: null
+  property var activePanelAnchorItem: null
+
+  function resolvePluginFile(pluginId, fileName) {
+    if (!pluginId || !fileName) return ""
+    if (fileName.indexOf("file://") === 0 || fileName.indexOf("qrc:/") === 0) return fileName
+
+    if (root.bar && root.bar.shell && root.bar.shell.pluginRegistry) {
+      var registry = root.bar.shell.pluginRegistry
+      var manifest = registry.installedPlugins ? registry.installedPlugins[pluginId] : null
+      if (manifest) {
+        var url = (typeof registry.entryPointUrl === "function")
+          ? (registry.entryPointUrl(manifest, "barWidget") || registry.entryPointUrl(manifest, "service") || registry.entryPointUrl(manifest, "panel"))
+          : ""
+        if (url) {
+          var lastSlash = url.lastIndexOf("/")
+          if (lastSlash !== -1) {
+            return url.substring(0, lastSlash + 1) + fileName
+          }
+        }
+        if (manifest.__sourceDir) {
+          var sDir = String(manifest.__sourceDir).replace(/\/+$/, "")
+          return "file://" + sDir + "/" + fileName
+        }
+      }
+    }
+
+    var home = Quickshell.env("HOME")
+    if (home) {
+      return "file://" + home + "/.config/omarchy/plugins/" + pluginId + "/" + fileName
+    }
+
+    return ""
+  }
+
+  property var hostBar: null
+
+  function findHostBar() {
+    if (hostBar) return hostBar
+
+    function isBar(obj) {
+      if (!obj) return false
+      // Exclude scoped PluginBarApi instances which have pluginId
+      if ("pluginId" in obj) return false
+      return !!(obj.barWidgetRegistry && obj.shell && typeof obj.shell.serviceFor === "function")
+    }
+    // 1. Inspect sibling slots in the current section
+    try {
+      var mySlot = root.parent ? root.parent.parent : null
+      var sectionRow = mySlot ? mySlot.parent : null
+      if (sectionRow && sectionRow.children) {
+        for (var i = 0; i < sectionRow.children.length; i++) {
+          var siblingSlot = sectionRow.children[i]
+          var activeIt = siblingSlot ? siblingSlot.activeItem : null
+          var activeBar = activeIt ? activeIt.bar : null
+          if (isBar(activeBar)) {
+            hostBar = activeBar
+            return hostBar
+          }
+        }
+      }
+    } catch (e1) {}
+
+    // 2. Traverse up through section loaders to horizontalBar / verticalBar
+    try {
+      var p = root.parent
+      while (p) {
+        if (isBar(p)) { hostBar = p; return hostBar }
+        if (isBar(p.bar)) { hostBar = p.bar; return hostBar }
+        if (p.children) {
+          for (var c = 0; c < p.children.length; c++) {
+            var ch = p.children[c]
+            if (!ch) continue
+            if (isBar(ch.bar)) { hostBar = ch.bar; return hostBar }
+            if (ch.activeItem && isBar(ch.activeItem.bar)) { hostBar = ch.activeItem.bar; return hostBar }
+            if (ch.children) {
+              for (var gc = 0; gc < ch.children.length; gc++) {
+                var gch = ch.children[gc]
+                if (gch && gch.activeItem && isBar(gch.activeItem.bar)) {
+                  hostBar = gch.activeItem.bar
+                  return hostBar
+                }
+              }
+            }
+          }
+        }
+        p = p.parent
+      }
+    } catch (e2) {}
+
+    return null
+  }
+
+  function resolvePluginService(pluginId) {
+    if (!pluginId) return null
+    var hb = findHostBar()
+    if (hb && hb.shell && typeof hb.shell.serviceFor === "function") {
+      try {
+        var s = hb.shell.serviceFor(pluginId)
+        if (s) {
+          console.log("fxg.tray: successfully resolved service for " + pluginId)
+          return s
+        }
+      } catch (e) {
+        console.warn("fxg.tray: hb.shell.serviceFor error:", e)
+      }
+    }
+
+    if (root.bar && root.bar.shell && typeof root.bar.shell.serviceFor === "function") {
+      try {
+        var svc = root.bar.shell.serviceFor(pluginId)
+        if (svc) return svc
+      } catch (e) {}
+    }
+    return null
+  }
+
+  function resolvePluginSettings(pluginId) {
+    if (!pluginId) return { id: "" }
+    var hb = root.findHostBar()
+    var cfg = hb && hb.shell && hb.shell.shellConfig ? hb.shell.shellConfig : null
+    if (cfg && Array.isArray(cfg.plugins)) {
+      for (var i = 0; i < cfg.plugins.length; i++) {
+        if (cfg.plugins[i] && cfg.plugins[i].id === pluginId) {
+          return cfg.plugins[i]
+        }
+      }
+    }
+    return { id: pluginId }
+  }
+
+  function updatePanelAnchor(anchorItem) {
+    if (!anchorItem) return
+    try {
+      var pt = root.mapFromItem(anchorItem, 0, 0)
+      panelAnchor.x = Math.round(pt.x)
+      panelAnchor.y = Math.round(pt.y)
+      panelAnchor.width = anchorItem.width > 0 ? anchorItem.width : root.trayItemExtent
+      panelAnchor.height = anchorItem.height > 0 ? anchorItem.height : root.trayItemExtent
+    } catch (e) {
+      console.warn("fxg.tray: updatePanelAnchor error:", e)
+    }
+  }
+
+  function togglePluginPanel(serviceItem, anchorItem) {
+    if (!serviceItem) return
+    var pluginId = serviceItem.pluginId || ""
+    var panelSource = serviceItem.panelSource || "Panel.qml"
+    var panelUrl = resolvePluginFile(pluginId, panelSource)
+
+    if (!panelUrl) {
+      console.warn("fxg.tray: unable to resolve panel for", serviceItem.id || pluginId)
+      if (typeof serviceItem.activate === "function") serviceItem.activate()
+      return
+    }
+
+    root.managePopupOpen = false
+    root.trayMenuOpen = false
+    unloadPanelTimer.stop()
+
+    // If currently open for this same service, toggle it closed
+    if (pluginPanelLoader.active && pluginPanelLoader.item && activePanelServiceItem === serviceItem && pluginPanelLoader.item.opened) {
+      pluginPanelLoader.item.close()
+      return
+    }
+
+    // Close any existing open panel first
+    if (pluginPanelLoader.item && pluginPanelLoader.item.opened && typeof pluginPanelLoader.item.close === "function") {
+      pluginPanelLoader.item.close()
+    }
+
+    activePanelAnchorItem = anchorItem
+    activePanelServiceItem = serviceItem
+    updatePanelAnchor(anchorItem)
+
+    pluginPanelLoader.targetPluginId = pluginId
+    pluginPanelLoader.targetService = resolvePluginService(pluginId)
+    pluginPanelLoader.targetItem = serviceItem
+
+    // Re-instantiate cleanly to guarantee pristine layer-shell surface lifecycle
+    pluginPanelLoader.active = false
+    pluginPanelLoader.source = panelUrl
+    pluginPanelLoader.active = true
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
+    if (pluginPanelLoader.item && typeof pluginPanelLoader.item.close === "function") {
+      pluginPanelLoader.item.close()
+    }
     if (!item || !item.menu) {
       if (item && typeof item.display === "function") {
         var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
@@ -227,12 +422,19 @@ BarWidget {
       tooltipTitle: "Bing Wallpaper",
       icon: "bing-wallpaper",
       glyph: "\uf1c5",
+      pluginId: "io.github.odessa2.bing-wallpaper",
+      panelSource: "Panel.qml",
       status: Status.Active,
       activate: function() {
         Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
       },
       secondaryActivate: function() {
-        Quickshell.execDetached(["omarchy-shell", "bing-wallpaper", "refresh"])
+        var svc = root.resolvePluginService("io.github.odessa2.bing-wallpaper")
+        if (svc && typeof svc.refresh === "function") {
+          svc.refresh()
+        } else {
+          Quickshell.execDetached(["omarchy-shell", "-q", "bing-wallpaper", "refresh"])
+        }
       },
       scroll: function(delta, reversed) {},
       display: function(win, x, y) {},
@@ -411,7 +613,12 @@ BarWidget {
           x: root.drawerExtent - root.revealExtent
           text: "\uf053"
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.RightButton) {
+              if (pluginPanelLoader.item && typeof pluginPanelLoader.item.close === "function") {
+                pluginPanelLoader.item.close()
+              }
+              root.managePopupOpen = !root.managePopupOpen
+            }
           }
         }
 
@@ -494,7 +701,12 @@ BarWidget {
           text: "\uf053"
           textRotation: 90
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.RightButton) {
+              if (pluginPanelLoader.item && typeof pluginPanelLoader.item.close === "function") {
+                pluginPanelLoader.item.close()
+              }
+              root.managePopupOpen = !root.managePopupOpen
+            }
           }
         }
 
@@ -652,6 +864,115 @@ BarWidget {
         }
       }
     }
+  }
+
+  Item {
+    id: panelAnchor
+    visible: true
+    opacity: 0
+    width: root.trayItemExtent
+    height: root.trayItemExtent
+    x: 0
+    y: 0
+  }
+
+  function syncBingWallpaperConfigFile(settings) {
+    if (!settings || typeof settings !== "object") return
+    var market = String(settings.market || "auto")
+    var setWallpaper = settings.setWallpaper !== false
+    var payload = JSON.stringify({ market: market, setWallpaper: setWallpaper }, null, 2)
+    var targetPath = Quickshell.env("HOME") + "/.config/omarchy/bing-wallpaper.json"
+    Quickshell.execDetached(["bash", "-c", "cat << 'EOF' > \"" + targetPath + "\"\n" + payload + "\nEOF"])
+  }
+
+  Loader {
+    id: pluginPanelLoader
+    active: false
+    visible: false
+    property string targetPluginId: ""
+    property var targetService: null
+    property var targetItem: null
+
+    function injectProperties() {
+      if (!item) return
+      var hb = root.findHostBar()
+      if ("bar" in item) item.bar = hb || root.bar
+      if ("anchorItem" in item) item.anchorItem = panelAnchor
+      if ("hostWidget" in item) item.hostWidget = null
+      var svc = targetService || root.resolvePluginService(targetPluginId)
+      if ("service" in item && svc) item.service = svc
+      var pluginSettings = root.resolvePluginSettings(targetPluginId)
+      if ("settings" in item) item.settings = pluginSettings
+      if (svc && pluginSettings && targetPluginId === "io.github.odessa2.bing-wallpaper") {
+        if (pluginSettings.market) {
+          if ("legacyMarket" in svc) svc.legacyMarket = pluginSettings.market
+          if ("legacySetWallpaper" in svc) svc.legacySetWallpaper = pluginSettings.setWallpaper !== false
+          if ("legacyConfigFound" in svc) svc.legacyConfigFound = true
+          if ("legacyConfigurationLoaded" in svc) svc.legacyConfigurationLoaded = true
+          if (typeof svc.setConfiguration === "function") {
+            svc.setConfiguration(pluginSettings.market, pluginSettings.setWallpaper !== false)
+          }
+        }
+      }
+    }
+
+    onLoaded: {
+      injectProperties()
+      Qt.callLater(function() {
+        if (!item) return
+        injectProperties()
+        if (typeof item.open === "function") item.open()
+        else if (typeof item.toggle === "function") item.toggle()
+      })
+    }
+  }
+
+  Connections {
+    target: pluginPanelLoader.item
+    ignoreUnknownSignals: true
+    function onOpenedChanged() {
+      if (pluginPanelLoader.item && !pluginPanelLoader.item.opened) {
+        unloadPanelTimer.restart()
+      }
+    }
+    function onSettingsChanged() {
+      if (pluginPanelLoader.item && pluginPanelLoader.targetPluginId === "io.github.odessa2.bing-wallpaper") {
+        var s = pluginPanelLoader.item.settings
+        root.syncBingWallpaperConfigFile(s)
+        var svc = pluginPanelLoader.targetService || root.resolvePluginService("io.github.odessa2.bing-wallpaper")
+        if (svc && s && s.market) {
+          if ("legacyMarket" in svc) svc.legacyMarket = s.market
+          if ("legacySetWallpaper" in svc) svc.legacySetWallpaper = s.setWallpaper !== false
+          if ("legacyConfigFound" in svc) svc.legacyConfigFound = true
+          if ("legacyConfigurationLoaded" in svc) svc.legacyConfigurationLoaded = true
+          if (typeof svc.setConfiguration === "function") {
+            svc.setConfiguration(s.market, s.setWallpaper !== false)
+          }
+          if (typeof svc.refresh === "function") {
+            svc.refresh()
+          }
+        }
+      }
+    }
+  }
+
+  Timer {
+    id: unloadPanelTimer
+    interval: 200
+    onTriggered: {
+      if (pluginPanelLoader.item && !pluginPanelLoader.item.opened) {
+        pluginPanelLoader.active = false
+      }
+    }
+  }
+
+  Component.onCompleted: {
+    Qt.callLater(function() {
+      var s = root.resolvePluginSettings("io.github.odessa2.bing-wallpaper")
+      if (s && s.market) {
+        root.syncBingWallpaperConfigFile(s)
+      }
+    })
   }
 
   QsMenuOpener {
@@ -943,6 +1264,8 @@ BarWidget {
     visible: modelData.status !== Status.Passive
     implicitWidth: visible ? root.trayItemExtent : 0
     implicitHeight: visible ? root.trayItemExtent : 0
+    width: implicitWidth
+    height: implicitHeight
 
     function displayMenu(mouse) {
       root.openTrayMenu(trayItemRoot.modelData, trayItemRoot, mouse)
@@ -980,23 +1303,34 @@ BarWidget {
       onExited: if (root.bar) root.bar.hideTooltip(trayItemRoot)
       onPressed: function(mouse) {
         if (mouse.button === Qt.RightButton) {
-          trayItemRoot.displayMenu(mouse)
-          mouse.accepted = true
+          if (trayItemRoot.modelData.menu) {
+            trayItemRoot.displayMenu(mouse)
+            mouse.accepted = true
+          } else if (typeof trayItemRoot.modelData.secondaryActivate === "function") {
+            trayItemRoot.modelData.secondaryActivate()
+            mouse.accepted = true
+          }
         }
       }
       onClicked: function(mouse) {
         if (mouse.button === Qt.RightButton) {
           mouse.accepted = true
         } else if (mouse.button === Qt.MiddleButton) {
-          trayItemRoot.modelData.secondaryActivate()
+          if (typeof trayItemRoot.modelData.secondaryActivate === "function") {
+            trayItemRoot.modelData.secondaryActivate()
+          }
         } else if (trayItemRoot.modelData.onlyMenu) {
           trayItemRoot.displayMenu(mouse)
-        } else {
+        } else if (trayItemRoot.modelData.pluginId || trayItemRoot.modelData.panelSource) {
+          root.togglePluginPanel(trayItemRoot.modelData, trayItemRoot)
+        } else if (typeof trayItemRoot.modelData.activate === "function") {
           trayItemRoot.modelData.activate()
         }
       }
       onWheel: function(wheel) {
-        trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)
+        if (typeof trayItemRoot.modelData.scroll === "function") {
+          trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)
+        }
       }
     }
 
