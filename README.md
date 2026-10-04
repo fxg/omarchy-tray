@@ -53,6 +53,59 @@ omarchy plugin disable omarchy.tray
 
 ---
 
+## 📥 通用抽屉组件收纳池 (Universal Widget Drawer)
+
+插件内置了通用抽屉扩展机制，支持从 `~/.config/omarchy/tray_drawer.json` 声明任意第三方组件、无托盘服务或脚本命令收归抽屉。
+
+若该文件不存在，插件默认提供包含 **Bing 壁纸、Tailscale、Syncthing** 的开箱即用收纳支持。
+
+### 自定义收纳示例 (`~/.config/omarchy/tray_drawer.json`)
+
+```json
+[
+  {
+    "id": "bing-wallpaper",
+    "title": "Bing 壁纸",
+    "tooltip": "Bing 壁纸",
+    "icon": "bing-wallpaper",
+    "enabled": true,
+    "onActivate": "omarchy-shell shell toggle io.github.odessa2.bing-wallpaper",
+    "onSecondary": "omarchy-shell bing-wallpaper refresh"
+  },
+  {
+    "id": "tailscale",
+    "title": "Tailscale",
+    "tooltip": "Tailscale",
+    "icon": "tailscale",
+    "enabled": true,
+    "onActivate": "foot --title='Tailscale Status' sh -c 'tailscale status; echo; read -n 1 -s -r -p \"按任意键关闭...\"'",
+    "onSecondary": "xdg-open https://login.tailscale.com/admin/machines"
+  },
+  {
+    "id": "syncthing",
+    "title": "Syncthing",
+    "tooltip": "Syncthing",
+    "icon": "syncthing",
+    "enabled": true,
+    "onActivate": "xdg-open http://127.0.0.1:8384",
+    "onSecondary": "xdg-open http://127.0.0.1:8384"
+  }
+]
+```
+
+### 字段说明
+- `id`：组件或服务唯一标识符
+- `title` / `tooltip`：极简纯粹悬浮提示文本
+- `icon`：内置图标名（如 `bing-wallpaper`、`tailscale` 等）或系统图标名
+- `onActivate`：鼠标左键点击时执行的终端命令或 IPC 动作
+- `onSecondary`：鼠标右键点击时执行的操作
+- `enabled`：快速开启或暂时禁用
+
+> [!TIP]
+> 当把一个独立的顶栏小组件（如 Bing 壁纸）收归入抽屉后，只需在终端执行 `omarchy bar remove <widget-id>`（例如 `omarchy bar remove io.github.odessa2.bing-wallpaper`）将其从外侧独立槽位移除，顶栏即可保持纯净！
+
+---
+
 ## 🛠️ 新应用图标扩展与适配指南
 
 若您需要为其他新应用（如 QQ、Slack、Spotify、1Password 等）适配单色矢量图标：
