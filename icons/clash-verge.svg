@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <style type="text/css">
+      .ColorScheme-Text { color: #fcfcfc; }
+    </style>
+  </defs>
+  <path style="fill:#fcfcfc;fill-opacity:1;stroke:none" fill-rule="evenodd" class="ColorScheme-Text" d="M 5 5 C 5.3 7 6 9.5 7.5 10 C 8.8 9.2 10.3 8.8 12 8.8 C 13.7 8.8 15.2 9.2 16.5 10 C 18 9.5 18.7 7 19 5 C 19.5 8 20.8 11.5 21 14 C 21.2 17.5 18.5 20.5 12 20.5 C 5.5 20.5 2.8 17.5 3 14 C 3.2 11.5 4.5 8 5 5 Z M 8.5 13.5 C 9.2 13.5 9.7 14.1 9.7 14.8 C 9.7 15.5 9.2 16.1 8.5 16.1 C 7.8 16.1 7.3 15.5 7.3 14.8 C 7.3 14.1 7.8 13.5 8.5 13.5 Z M 15.5 13.5 C 16.2 13.5 16.7 14.1 16.7 14.8 C 16.7 15.5 16.2 16.1 15.5 16.1 C 14.8 16.1 14.3 15.5 14.3 14.8 C 14.3 14.1 14.8 13.5 15.5 13.5 Z M 11.3 17 L 12.7 17 L 12 17.8 Z"/>
+</svg>

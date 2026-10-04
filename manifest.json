@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "fxg.tray",
+  "name": "My System tray",
+  "version": "1.0.0",
+  "author": "fxg",
+  "license": "MIT",
+  "description": "System tray with monochrome vector icon normalization and dynamic theme colorization",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Tray.qml"
+  },
+  "barWidget": {
+    "displayName": "System tray",
+    "description": "System tray with monochrome vector icons and drawer",
+    "category": "Status",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

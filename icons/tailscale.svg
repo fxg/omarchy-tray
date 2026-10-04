@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <defs>
+    <style type="text/css">
+      .ts-dim { fill: #fcfcfc; fill-opacity: 0.35; }
+      .ts-act { fill: #fcfcfc; fill-opacity: 1.0; }
+    </style>
+  </defs>
+  <!-- Top row (inactive) -->
+  <circle class="ts-dim" cx="4" cy="4" r="2.6" />
+  <circle class="ts-dim" cx="12" cy="4" r="2.6" />
+  <circle class="ts-dim" cx="20" cy="4" r="2.6" />
+  <!-- Middle row (active) -->
+  <circle class="ts-act" cx="4" cy="12" r="2.6" />
+  <circle class="ts-act" cx="12" cy="12" r="2.6" />
+  <circle class="ts-act" cx="20" cy="12" r="2.6" />
+  <!-- Bottom row (inactive - active - inactive) -->
+  <circle class="ts-dim" cx="4" cy="20" r="2.6" />
+  <circle class="ts-act" cx="12" cy="20" r="2.6" />
+  <circle class="ts-dim" cx="20" cy="20" r="2.6" />
+</svg>
