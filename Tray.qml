@@ -226,6 +226,7 @@ BarWidget {
       title: "Bing Wallpaper",
       tooltipTitle: "Bing Wallpaper",
       icon: "bing-wallpaper",
+      glyph: "\uf1c5",
       status: Status.Active,
       activate: function() {
         Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
@@ -937,6 +938,7 @@ BarWidget {
     id: trayItemRoot
 
     required property var modelData
+    readonly property bool hasGlyph: !!modelData.glyph && String(modelData.glyph) !== ""
 
     visible: modelData.status !== Status.Passive
     implicitWidth: visible ? root.trayItemExtent : 0
@@ -946,7 +948,21 @@ BarWidget {
       root.openTrayMenu(trayItemRoot.modelData, trayItemRoot, mouse)
     }
 
+    // 插件自身字形图标：直接采用插件定义的原生字形，并 100% 绑定系统 Theme 前景色
+    Text {
+      visible: trayItemRoot.hasGlyph
+      anchors.centerIn: parent
+      text: trayItemRoot.hasGlyph ? trayItemRoot.modelData.glyph : ""
+      color: root.foreground
+      font.family: root.fontFamily
+      font.pixelSize: Style.bar ? Style.bar.iconCanvas : Style.space(16)
+      horizontalAlignment: Text.AlignHCenter
+      verticalAlignment: Text.AlignVCenter
+    }
+
+    // 外部应用矢量/位图图标：走单色拦截与 MultiEffect 着色
     TrayIcon {
+      visible: !trayItemRoot.hasGlyph
       anchors.centerIn: parent
       width: Style.bar ? Style.bar.iconCanvas : Style.space(16)
       height: Style.bar ? Style.bar.iconCanvas : Style.space(16)
