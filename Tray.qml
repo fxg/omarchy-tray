@@ -358,6 +358,9 @@ BarWidget {
     if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
       return pluginIcon("wechat.svg")
     }
+    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1) {
+      return pluginIcon("telegram.svg")
+    }
     if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1) {
       return pluginIcon("bing-wallpaper.svg")
     }
@@ -392,14 +395,14 @@ BarWidget {
     if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
       return true
     }
+    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1) {
+      return true
+    }
     if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1) {
       return true
     }
 
     // 原生彩色应用图标白名单：保持原生彩色，防止被 MultiEffect 强行覆色
-    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1) {
-      return false
-    }
     if (s.indexOf("joplin") !== -1 || iid.indexOf("joplin") !== -1 || title.indexOf("joplin") !== -1) {
       return false
     }
