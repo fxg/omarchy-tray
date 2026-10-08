@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Io
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
@@ -145,12 +146,9 @@ BarWidget {
           var sDir = String(manifest.__sourceDir).replace(/\/+$/, "")
           return "file://" + sDir + "/" + fileName
         }
+      } else {
+        return ""
       }
-    }
-
-    var home = Quickshell.env("HOME")
-    if (home) {
-      return "file://" + home + "/.config/omarchy/plugins/" + pluginId + "/" + fileName
     }
 
     return ""
@@ -214,16 +212,30 @@ BarWidget {
     return null
   }
 
+  function isPluginRunning(pluginId) {
+    if (!pluginId) return false
+    var hb = findHostBar()
+    var shellObj = (hb && hb.shell) ? hb.shell : (root.bar ? root.bar.shell : null)
+    var reg = shellObj ? shellObj.pluginRegistry : null
+    if (!reg || !reg.installedPlugins) return false
+    var manifest = reg.installedPlugins[pluginId]
+    if (!manifest) return false
+    if (typeof reg.isEnabled === "function" && !reg.isEnabled(pluginId)) return false
+    if (Array.isArray(manifest.kinds) && manifest.kinds.indexOf("service") !== -1) {
+      if (shellObj && typeof shellObj.serviceFor === "function") {
+        return shellObj.serviceFor(pluginId) !== null
+      }
+    }
+    return true
+  }
+
   function resolvePluginService(pluginId) {
     if (!pluginId) return null
     var hb = findHostBar()
     if (hb && hb.shell && typeof hb.shell.serviceFor === "function") {
       try {
         var s = hb.shell.serviceFor(pluginId)
-        if (s) {
-          console.log("fxg.tray: successfully resolved service for " + pluginId)
-          return s
-        }
+        if (s) return s
       } catch (e) {
         console.warn("fxg.tray: hb.shell.serviceFor error:", e)
       }
@@ -418,67 +430,136 @@ BarWidget {
     return item.tooltipTitle || item.title || item.id || ""
   }
 
-  readonly property var extraServices: [
-    {
-      id: "bing-wallpaper",
-      title: "Bing Wallpaper",
-      tooltipTitle: "Bing Wallpaper",
-      icon: "bing-wallpaper",
-      glyph: "\uf1c5",
-      pluginId: "io.github.odessa2.bing-wallpaper",
-      panelSource: "Panel.qml",
-      status: Status.Active,
-      activate: function() {
-        Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
-      },
-      secondaryActivate: function() {
-        var svc = root.resolvePluginService("io.github.odessa2.bing-wallpaper")
-        if (svc && typeof svc.refresh === "function") {
-          svc.refresh()
-        } else {
-          Quickshell.execDetached(["omarchy-shell", "-q", "bing-wallpaper", "refresh"])
-        }
-      },
-      scroll: function(delta, reversed) {},
-      display: function(win, x, y) {},
-      onlyMenu: false,
-      menu: null
-    },
-    {
-      id: "tailscale",
-      title: "Tailscale",
-      tooltipTitle: "Tailscale",
-      icon: "tailscale",
-      status: Status.Active,
-      activate: function() {
-        Quickshell.execDetached(["foot", "--title=Tailscale Status", "sh", "-c", "tailscale status; echo; read -n 1 -s -r -p '按任意键关闭...'"])
-      },
-      secondaryActivate: function() {
-        Quickshell.execDetached(["xdg-open", "https://login.tailscale.com/admin/machines"])
-      },
-      scroll: function(delta, reversed) {},
-      display: function(win, x, y) {},
-      onlyMenu: false,
-      menu: null
-    },
-    {
-      id: "syncthing",
-      title: "Syncthing",
-      tooltipTitle: "Syncthing",
-      icon: "syncthing",
-      status: Status.Active,
-      activate: function() {
-        Quickshell.execDetached(["xdg-open", "http://127.0.0.1:8384"])
-      },
-      secondaryActivate: function() {
-        Quickshell.execDetached(["xdg-open", "http://127.0.0.1:8384"])
-      },
-      scroll: function(delta, reversed) {},
-      display: function(win, x, y) {},
-      onlyMenu: false,
-      menu: null
+  property bool tailscaleRunning: false
+  property bool syncthingRunning: false
+  property int serviceProbeRevision: 0
+
+  readonly property bool bingWallpaperRunning: {
+    var _rev = root.serviceProbeRevision
+    return root.isPluginRunning("io.github.odessa2.bing-wallpaper")
+  }
+
+  Connections {
+    target: {
+      var hb = root.findHostBar()
+      return (hb && hb.shell) ? hb.shell.pluginRegistry : (root.bar && root.bar.shell ? root.bar.shell.pluginRegistry : null)
     }
-  ]
+    ignoreUnknownSignals: true
+    function onPluginsChanged() {
+      root.serviceProbeRevision++
+    }
+  }
+
+  Process {
+    id: serviceProbeProcess
+    running: false
+    command: ["sh", "-c", "echo \"tailscale:$([ -S /run/tailscale/tailscaled.sock ] || pgrep -f tailscaled >/dev/null && echo 1 || echo 0)\"; echo \"syncthing:$(pgrep -x syncthing >/dev/null && echo 1 || echo 0)\""]
+    stdout: StdioCollector {
+      id: probeStdout
+      waitForEnd: true
+      onStreamFinished: {
+        var lines = (text || "").trim().split("\n")
+        for (var i = 0; i < lines.length; i++) {
+          var parts = lines[i].split(":")
+          if (parts[0] === "tailscale") {
+            root.tailscaleRunning = (parts[1] === "1")
+          } else if (parts[0] === "syncthing") {
+            root.syncthingRunning = (parts[1] === "1")
+          }
+        }
+        root.serviceProbeRevision++
+      }
+    }
+  }
+
+  Timer {
+    id: serviceProbeTimer
+    interval: 10000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      if (!serviceProbeProcess.running) {
+        serviceProbeProcess.running = true
+      }
+      root.serviceProbeRevision++
+    }
+  }
+
+  readonly property var extraServices: {
+    var _rev = root.serviceProbeRevision
+    var list = []
+
+    if (root.bingWallpaperRunning) {
+      list.push({
+        id: "bing-wallpaper",
+        title: "Bing Wallpaper",
+        tooltipTitle: "Bing Wallpaper",
+        icon: "bing-wallpaper",
+        glyph: "\uf1c5",
+        pluginId: "io.github.odessa2.bing-wallpaper",
+        panelSource: "Panel.qml",
+        status: Status.Active,
+        activate: function() {
+          Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
+        },
+        secondaryActivate: function() {
+          var svc = root.resolvePluginService("io.github.odessa2.bing-wallpaper")
+          if (svc && typeof svc.refresh === "function") {
+            svc.refresh()
+          } else {
+            Quickshell.execDetached(["omarchy-shell", "-q", "bing-wallpaper", "refresh"])
+          }
+        },
+        scroll: function(delta, reversed) {},
+        display: function(win, x, y) {},
+        onlyMenu: false,
+        menu: null
+      })
+    }
+
+    if (root.tailscaleRunning) {
+      list.push({
+        id: "tailscale",
+        title: "Tailscale",
+        tooltipTitle: "Tailscale",
+        icon: "tailscale",
+        status: Status.Active,
+        activate: function() {
+          Quickshell.execDetached(["foot", "--title=Tailscale Status", "sh", "-c", "tailscale status; echo; read -n 1 -s -r -p '按任意键关闭...'"])
+        },
+        secondaryActivate: function() {
+          Quickshell.execDetached(["xdg-open", "https://login.tailscale.com/admin/machines"])
+        },
+        scroll: function(delta, reversed) {},
+        display: function(win, x, y) {},
+        onlyMenu: false,
+        menu: null
+      })
+    }
+
+    if (root.syncthingRunning) {
+      list.push({
+        id: "syncthing",
+        title: "Syncthing",
+        tooltipTitle: "Syncthing",
+        icon: "syncthing",
+        status: Status.Active,
+        activate: function() {
+          Quickshell.execDetached(["xdg-open", "http://127.0.0.1:8384"])
+        },
+        secondaryActivate: function() {
+          Quickshell.execDetached(["xdg-open", "http://127.0.0.1:8384"])
+        },
+        scroll: function(delta, reversed) {},
+        display: function(win, x, y) {},
+        onlyMenu: false,
+        menu: null
+      })
+    }
+
+    return list
+  }
 
   function classifyItem(item) {
     var iid = String(item.id || "")
@@ -502,10 +583,13 @@ BarWidget {
   function bucket(category) {
     var values = SystemTray.items.values
     var result = []
+    var seen = ({})
     for (var i = 0; i < values.length; i++) {
       var item = values[i]
-      if (item.status === Status.Passive) continue
+      if (!item || item.status === Status.Passive) continue
       if (ownedByOmarchy(item)) continue
+      var iid = String(item.id || item.title || "").toLowerCase()
+      if (iid) seen[iid] = true
       if (category === "all") {
         result.push(item)
         continue
@@ -515,6 +599,9 @@ BarWidget {
 
     for (var j = 0; j < extraServices.length; j++) {
       var sItem = extraServices[j]
+      if (!sItem || sItem.status === Status.Passive) continue
+      var sid = String(sItem.id || sItem.title || "").toLowerCase()
+      if (seen[sid]) continue
       if (category === "all") {
         result.push(sItem)
         continue
