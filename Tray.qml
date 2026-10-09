@@ -394,6 +394,9 @@ BarWidget {
     if (s.indexOf("agenda") !== -1 || iid.indexOf("agenda") !== -1 || pid.indexOf("agenda") !== -1) {
       return pluginIcon("agenda.svg")
     }
+    if (s.indexOf("joplin") !== -1 || iid.indexOf("joplin") !== -1 || title.indexOf("joplin") !== -1 || tooltip.indexOf("joplin") !== -1) {
+      return pluginIcon("joplin.svg")
+    }
 
     // 2. 动态 Omarchy 插件图标解析
     if (item && item.pluginId) {
@@ -408,54 +411,12 @@ BarWidget {
     return String(icon || "")
   }
 
-  // Symbolic icons ship a fixed fill (often near-white) that the host is meant
-  // to recolor to its foreground; detect them by the freedesktop "-symbolic"
-  // name suffix so they can be tinted instead of rendered as-is.
+  // 全局自适应着色通道：顶栏系统托盘必须保持极致的通透、克制与色调一致性，
+  // 杜绝任何第三方实心彩底大方块破坏桌面美感。
+  // 所有托盘图标（无论已知应用、动态插件、还是新启动的外部第三方应用）
+  // 均默认 100% 纳入 MultiEffect 主题动态着色通道，在应用启动瞬间实时自适应当前系统色温。
   function iconIsSymbolic(icon, item) {
-    var s = String(icon || "").toLowerCase()
-    var iid = item ? String(item.id || "").toLowerCase() : ""
-    var title = item ? String(item.title || "").toLowerCase() : ""
-    var tooltip = item ? String(item.tooltipTitle || "").toLowerCase() : ""
-
-    // 自定义单色透明矢量应用：纳管至系统主题动态着色通道 (MultiEffect)
-    if (s.indexOf("input-keyboard") !== -1 || s.indexOf("fcitx") !== -1 || s.indexOf("pinyin") !== -1 || iid.indexOf("fcitx") !== -1) {
-      return true
-    }
-    if (s.indexOf("clash") !== -1 || iid.indexOf("clash") !== -1 || title.indexOf("clash") !== -1 || tooltip.indexOf("clash") !== -1) {
-      return true
-    }
-    if (s.indexOf("antigravity") !== -1 || iid.indexOf("antigravity") !== -1 || title.indexOf("antigravity") !== -1 || tooltip.indexOf("antigravity") !== -1) {
-      return true
-    }
-    if (s.indexOf("tailscale") !== -1 || iid.indexOf("tailscale") !== -1 || title.indexOf("tailscale") !== -1 || tooltip.indexOf("tailscale") !== -1) {
-      return true
-    }
-    if (s.indexOf("syncthing") !== -1 || iid.indexOf("syncthing") !== -1 || title.indexOf("syncthing") !== -1 || tooltip.indexOf("syncthing") !== -1) {
-      return true
-    }
-    if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || tooltip.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
-      return true
-    }
-    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1 || tooltip.indexOf("telegram") !== -1) {
-      return true
-    }
-    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1) {
-      return true
-    }
-
-    // 动态纳管插件统一纳入单色主题动态着色通道
-    if (item && item.isDynamicPlugin) {
-      return true
-    }
-
-    // 本地 icons/ 目录下的图标均统一经过 MultiEffect 着色
-    var src = root.trayIconSource(icon, item)
-    if (src && src.indexOf("/icons/") !== -1) {
-      return true
-    }
-
-    var name = s.split("?")[0]
-    return name.slice(-9) === "-symbolic"
+    return true
   }
 
   function trayTooltip(item) {
