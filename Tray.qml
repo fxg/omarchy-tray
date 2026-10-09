@@ -360,6 +360,11 @@ BarWidget {
     var s = String(icon || "").toLowerCase()
     var iid = item ? String(item.id || "").toLowerCase() : ""
     var title = item ? String(item.title || "").toLowerCase() : ""
+    var pid = item && item.pluginId ? String(item.pluginId).toLowerCase() : ""
+
+    if (icon && (icon.indexOf("file://") === 0 || icon.indexOf("qrc:/") === 0 || icon.indexOf("/") !== -1)) {
+      return String(icon)
+    }
 
     if (s.indexOf("input-keyboard") !== -1 || (s.indexOf("keyboard") !== -1 && s.indexOf("fcitx") !== -1)) {
       return pluginIcon("fcitx-en.svg")
@@ -385,8 +390,20 @@ BarWidget {
     if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1) {
       return pluginIcon("telegram.svg")
     }
-    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1) {
+    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1 || pid.indexOf("bing-wallpaper") !== -1) {
       return pluginIcon("bing-wallpaper.svg")
+    }
+    if (s.indexOf("agenda") !== -1 || iid.indexOf("agenda") !== -1 || pid.indexOf("agenda") !== -1) {
+      return pluginIcon("agenda.svg")
+    }
+
+    // 动态纳管插件的默认或自定义图标解析
+    if (item && item.pluginId) {
+      if (item.manifest && item.manifest.barWidget && item.manifest.barWidget.icon) {
+        var mfIcon = root.resolvePluginFile(item.pluginId, item.manifest.barWidget.icon)
+        if (mfIcon) return mfIcon
+      }
+      return pluginIcon("plugin-generic.svg")
     }
 
     return String(icon || "")
@@ -400,38 +417,23 @@ BarWidget {
     var iid = item ? String(item.id || "").toLowerCase() : ""
     var title = item ? String(item.title || "").toLowerCase() : ""
 
-    // 自定义单色透明矢量应用：纳管至系统主题动态着色通道 (MultiEffect)
-    if (s.indexOf("input-keyboard") !== -1 || s.indexOf("fcitx") !== -1 || s.indexOf("pinyin") !== -1) {
-      return true
-    }
-    if (s.indexOf("clash") !== -1 || iid.indexOf("clash") !== -1 || title.indexOf("clash") !== -1) {
-      return true
-    }
-    if (s.indexOf("antigravity") !== -1 || iid.indexOf("antigravity") !== -1 || title.indexOf("antigravity") !== -1) {
-      return true
-    }
-    if (s.indexOf("tailscale") !== -1 || iid.indexOf("tailscale") !== -1 || title.indexOf("tailscale") !== -1) {
-      return true
-    }
-    if (s.indexOf("syncthing") !== -1 || iid.indexOf("syncthing") !== -1 || title.indexOf("syncthing") !== -1) {
-      return true
-    }
-    if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
-      return true
-    }
-    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1) {
-      return true
-    }
-    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1) {
-      return true
-    }
-
     // 原生彩色应用图标白名单：保持原生彩色，防止被 MultiEffect 强行覆色
     if (s.indexOf("joplin") !== -1 || iid.indexOf("joplin") !== -1 || title.indexOf("joplin") !== -1) {
       return false
     }
     if (s.indexOf("obsidian") !== -1 || iid.indexOf("obsidian") !== -1 || title.indexOf("obsidian") !== -1) {
       return false
+    }
+
+    // 动态纳管插件统一纳入单色主题动态着色通道
+    if (item && item.isDynamicPlugin) {
+      return true
+    }
+
+    // 本地 icons/ 目录下的图标均统一经过 MultiEffect 着色
+    var src = root.trayIconSource(icon, item)
+    if (src && src.indexOf("/icons/") !== -1) {
+      return true
     }
 
     var name = s.split("?")[0]
@@ -456,6 +458,20 @@ BarWidget {
     ignoreUnknownSignals: true
     function onPluginsChanged() {
       root.bingWallpaperRunning = root.isPluginRunning("io.github.odessa2.bing-wallpaper")
+      root.serviceProbeRevision++
+    }
+    function onScanFinished() {
+      root.serviceProbeRevision++
+    }
+    function onLocalPluginChanged() {
+      root.serviceProbeRevision++
+    }
+  }
+
+  Connections {
+    target: root.bar || null
+    ignoreUnknownSignals: true
+    function onLayoutConfigChanged() {
       root.serviceProbeRevision++
     }
   }
@@ -497,38 +513,129 @@ BarWidget {
     }
   }
 
-  readonly property var extraServices: {
-    var _rev = root.serviceProbeRevision
-    var list = []
+  function createPluginActivator(pluginId, manifest, panelSource) {
+    return function() {
+      var panelUrl = root.resolvePluginFile(pluginId, panelSource || "Panel.qml")
+      if (panelUrl) {
+        root.togglePluginPanel({
+          id: pluginId,
+          pluginId: pluginId,
+          panelSource: panelSource || "Panel.qml"
+        }, root.activePanelAnchorItem || root)
+        return
+      }
+      Quickshell.execDetached(["omarchy-shell", "shell", "toggle", pluginId])
+    }
+  }
 
-    if (root.bingWallpaperRunning) {
-      list.push({
-        id: "bing-wallpaper",
-        title: "Bing Wallpaper",
-        tooltipTitle: "Bing Wallpaper",
-        icon: "bing-wallpaper",
-        glyph: "\uf1c5",
-        pluginId: "io.github.odessa2.bing-wallpaper",
-        panelSource: "Panel.qml",
-        status: Status.Active,
-        activate: function() {
-          Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "io.github.odessa2.bing-wallpaper"])
-        },
-        secondaryActivate: function() {
-          var svc = root.resolvePluginService("io.github.odessa2.bing-wallpaper")
-          if (svc && typeof svc.refresh === "function") {
-            svc.refresh()
-          } else {
-            Quickshell.execDetached(["omarchy-shell", "-q", "bing-wallpaper", "refresh"])
+  function createPluginSecondaryActivator(pluginId, manifest) {
+    return function() {
+      var svc = root.resolvePluginService(pluginId)
+      if (svc) {
+        if (typeof svc.refresh === "function") {
+          svc.refresh()
+          return
+        }
+        if (typeof svc.toggle === "function") {
+          svc.toggle()
+          return
+        }
+      }
+      Quickshell.execDetached(["omarchy-shell", "-q", pluginId, "refresh"])
+    }
+  }
+
+  function discoverDynamicPlugins() {
+    var hb = findHostBar()
+    var shellObj = (hb && hb.shell) ? hb.shell : (root.bar ? root.bar.shell : null)
+    var reg = shellObj ? shellObj.pluginRegistry : null
+    if (!reg || !reg.installedPlugins) return []
+
+    var barLayout = root.bar && root.bar.layoutConfig ? root.bar.layoutConfig : null
+    if (!barLayout && hb && hb.layoutConfig) barLayout = hb.layoutConfig
+
+    var list = []
+    var installed = reg.installedPlugins
+
+    for (var pluginId in installed) {
+      if (!pluginId || pluginId === root.moduleName || pluginId === "omarchy.tray") continue
+      if (TrayModel.isSystemInfra(pluginId)) continue
+
+      var manifest = installed[pluginId]
+      if (!manifest) continue
+
+      var isEn = (typeof reg.isEnabled === "function") ? reg.isEnabled(pluginId) : false
+      if (!isEn) continue
+
+      var onBar = (typeof reg.inBar === "function") ? reg.inBar(pluginId) : false
+      if (!onBar && barLayout && TrayModel.layoutHasWidget(barLayout, pluginId)) {
+        onBar = true
+      }
+      if (onBar) continue
+
+      if (manifest.__isFirstParty) {
+        var isExplicitConfig = false
+        var shellCfg = shellObj && shellObj.shellConfig ? shellObj.shellConfig : null
+        if (shellCfg && Array.isArray(shellCfg.plugins)) {
+          for (var p = 0; p < shellCfg.plugins.length; p++) {
+            if (shellCfg.plugins[p] && shellCfg.plugins[p].id === pluginId) {
+              isExplicitConfig = true
+              break
+            }
           }
-        },
+        }
+        if (!isExplicitConfig) continue
+      }
+
+      var panelSource = "Panel.qml"
+      if (manifest.entryPoints) {
+        if (manifest.entryPoints.panel) panelSource = manifest.entryPoints.panel
+        else if (manifest.entryPoints.barWidget) panelSource = "Panel.qml"
+      }
+
+      var glyph = TrayModel.resolvePluginGlyph(manifest, pluginId)
+      var iconName = TrayModel.resolvePluginIconName(manifest, pluginId)
+
+      var title = manifest.name || (manifest.barWidget && manifest.barWidget.displayName) || pluginId
+      var tooltip = (manifest.barWidget && manifest.barWidget.displayName) || manifest.name || pluginId
+
+      var item = {
+        id: pluginId,
+        title: title,
+        tooltipTitle: tooltip,
+        pluginId: pluginId,
+        manifest: manifest,
+        panelSource: panelSource,
+        glyph: glyph,
+        icon: iconName,
+        status: Status.Active,
+        isDynamicPlugin: true,
+        activate: createPluginActivator(pluginId, manifest, panelSource),
+        secondaryActivate: createPluginSecondaryActivator(pluginId, manifest),
         scroll: function(delta, reversed) {},
         display: function(win, x, y) {},
         onlyMenu: false,
         menu: null
-      })
+      }
+
+      list.push(item)
     }
 
+    return list
+  }
+
+  readonly property var extraServices: {
+    var _rev = root.serviceProbeRevision
+    var _barLayout = root.bar && root.bar.layoutConfig ? root.bar.layoutConfig : null
+    var list = []
+
+    // 1. 动态自动发现未置于顶栏的已启用插件 (Dynamic Auto-Discovered Plugins)
+    var dynamicList = root.discoverDynamicPlugins()
+    for (var d = 0; d < dynamicList.length; d++) {
+      list.push(dynamicList[d])
+    }
+
+    // 2. 本地系统后台服务虚拟化纳管 (Tailscale, Syncthing 等)
     if (root.tailscaleRunning) {
       list.push({
         id: "tailscale",
@@ -577,6 +684,10 @@ BarWidget {
     if (hiddenIds.indexOf(iid) !== -1) return "hidden"
     if (pinnedIds.indexOf(iid) !== -1) return "pinned"
     var lower = iid.toLowerCase()
+    for (var h = 0; h < hiddenIds.length; h++) {
+      var hid = String(hiddenIds[h]).toLowerCase()
+      if (hid.length > 0 && lower.indexOf(hid) !== -1) return "hidden"
+    }
     for (var i = 0; i < pinnedIds.length; i++) {
       var p = String(pinnedIds[i]).toLowerCase()
       if (p.length > 0 && lower.indexOf(p) !== -1) return "pinned"
@@ -613,6 +724,7 @@ BarWidget {
       if (!sItem || sItem.status === Status.Passive) continue
       var sid = String(sItem.id || sItem.title || "").toLowerCase()
       if (seen[sid]) continue
+      if (sItem.pluginId) seen[String(sItem.pluginId).toLowerCase()] = true
       if (category === "all") {
         result.push(sItem)
         continue
@@ -910,20 +1022,36 @@ BarWidget {
           readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
           readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
 
-          TrayIcon {
-            id: rowIcon
+          Item {
+            id: rowIconSlot
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.left
             width: 16
             height: 16
-            icon: rowRoot.modelData.icon
-            item: rowRoot.modelData
+
+            Text {
+              visible: !!rowRoot.modelData.glyph
+              anchors.centerIn: parent
+              text: rowRoot.modelData.glyph || ""
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: 14
+              horizontalAlignment: Text.AlignHCenter
+              verticalAlignment: Text.AlignVCenter
+            }
+
+            TrayIcon {
+              visible: !rowRoot.modelData.glyph
+              anchors.fill: parent
+              icon: rowRoot.modelData.icon
+              item: rowRoot.modelData
+            }
           }
 
           Text {
             textFormat: Text.PlainText
             anchors.verticalCenter: parent.verticalCenter
-            anchors.left: rowIcon.right
+            anchors.left: rowIconSlot.right
             anchors.leftMargin: Style.space(10)
             anchors.right: rowHideBtn.left
             anchors.rightMargin: Style.space(8)
@@ -1025,6 +1153,16 @@ BarWidget {
         if (typeof item.open === "function") item.open()
         else if (typeof item.toggle === "function") item.toggle()
       })
+    }
+
+    onStatusChanged: {
+      if (status === Loader.Error) {
+        console.warn("fxg.tray: panel loader failed for", targetPluginId, "falling back to activate()")
+        active = false
+        if (targetItem && typeof targetItem.activate === "function") {
+          targetItem.activate()
+        }
+      }
     }
   }
 
