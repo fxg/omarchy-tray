@@ -367,7 +367,7 @@ BarWidget {
     if (s.indexOf("input-keyboard") !== -1 || (s.indexOf("keyboard") !== -1 && s.indexOf("fcitx") !== -1)) {
       return pluginIcon("fcitx-en.svg")
     }
-    if (s.indexOf("fcitx-pinyin") !== -1 || s.indexOf("pinyin") !== -1) {
+    if (s.indexOf("fcitx-pinyin") !== -1 || s.indexOf("pinyin") !== -1 || s.indexOf("rime") !== -1) {
       return pluginIcon("fcitx-pinyin.svg")
     }
     if (s.indexOf("clash") !== -1 || iid.indexOf("clash") !== -1 || title.indexOf("clash") !== -1 || tooltip.indexOf("clash") !== -1) {

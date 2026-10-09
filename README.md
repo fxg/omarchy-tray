@@ -13,7 +13,7 @@
 
 - 🎨 **消灭丑陋大方底，全单色负空间矢量**：
   - 深度拦截 DBus 上的 StatusNotifierItem 信号，将原生位图/彩色方底替换为通透的单色矢量 SVG。
-  - 内置支持：**微信 (WeChat Linux)、Clash Verge、Antigravity、Fcitx5 (拼音/英文)、Tailscale、Syncthing** 等常用应用。
+  - 内置支持：**微信 (WeChat Linux)、Clash Verge、Antigravity、Fcitx5 (拼音/Rime雾凇/英文)、Tailscale、Syncthing** 等常用应用。
 - 🌡️ **动态主题色温融合 (Theme Colorization)**：
   - 接入系统的 `MultiEffect` Shader 动态着色通道；
   - 切换到 **Tokyo Night** 时自动泛出微冷蓝灰光泽，切换到 **Gruvbox** 时自动变为温润暖米黄，浅色主题下自动变深色防隐形，与 Wi-Fi、蓝牙、电源、时钟等原生组件颜色完全一致。
