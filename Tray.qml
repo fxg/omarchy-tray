@@ -129,9 +129,12 @@ BarWidget {
     if (!pluginId || !fileName) return ""
     if (fileName.indexOf("file://") === 0 || fileName.indexOf("qrc:/") === 0) return fileName
 
-    if (root.bar && root.bar.shell && root.bar.shell.pluginRegistry) {
-      var registry = root.bar.shell.pluginRegistry
-      var manifest = registry.installedPlugins ? registry.installedPlugins[pluginId] : null
+    var hb = findHostBar()
+    var shellObj = (hb && hb.shell) ? hb.shell : (root.bar ? root.bar.shell : null)
+    var registry = shellObj ? shellObj.pluginRegistry : null
+
+    if (registry && registry.installedPlugins) {
+      var manifest = registry.installedPlugins[pluginId]
       if (manifest) {
         var url = (typeof registry.entryPointUrl === "function")
           ? (registry.entryPointUrl(manifest, "barWidget") || registry.entryPointUrl(manifest, "service") || registry.entryPointUrl(manifest, "panel"))
@@ -146,9 +149,12 @@ BarWidget {
           var sDir = String(manifest.__sourceDir).replace(/\/+$/, "")
           return "file://" + sDir + "/" + fileName
         }
-      } else {
-        return ""
       }
+    }
+
+    var homeDir = Quickshell.env("HOME")
+    if (homeDir) {
+      return "file://" + homeDir + "/.config/omarchy/plugins/" + pluginId + "/" + fileName
     }
 
     return ""
@@ -165,6 +171,14 @@ BarWidget {
       if ("pluginId" in obj) return false
       return !!(obj.barWidgetRegistry && obj.shell && typeof obj.shell.serviceFor === "function")
     }
+
+    function recordHostBar(found) {
+      if (found && hostBar !== found) {
+        Qt.callLater(function() { if (!root.hostBar) root.hostBar = found })
+      }
+      return found
+    }
+
     // 1. Inspect sibling slots in the current section
     try {
       var mySlot = root.parent ? root.parent.parent : null
@@ -175,8 +189,7 @@ BarWidget {
           var activeIt = siblingSlot ? siblingSlot.activeItem : null
           var activeBar = activeIt ? activeIt.bar : null
           if (isBar(activeBar)) {
-            hostBar = activeBar
-            return hostBar
+            return recordHostBar(activeBar)
           }
         }
       }
@@ -186,20 +199,19 @@ BarWidget {
     try {
       var p = root.parent
       while (p) {
-        if (isBar(p)) { hostBar = p; return hostBar }
-        if (isBar(p.bar)) { hostBar = p.bar; return hostBar }
+        if (isBar(p)) return recordHostBar(p)
+        if (isBar(p.bar)) return recordHostBar(p.bar)
         if (p.children) {
           for (var c = 0; c < p.children.length; c++) {
             var ch = p.children[c]
             if (!ch) continue
-            if (isBar(ch.bar)) { hostBar = ch.bar; return hostBar }
-            if (ch.activeItem && isBar(ch.activeItem.bar)) { hostBar = ch.activeItem.bar; return hostBar }
+            if (isBar(ch.bar)) return recordHostBar(ch.bar)
+            if (ch.activeItem && isBar(ch.activeItem.bar)) return recordHostBar(ch.activeItem.bar)
             if (ch.children) {
               for (var gc = 0; gc < ch.children.length; gc++) {
                 var gch = ch.children[gc]
                 if (gch && gch.activeItem && isBar(gch.activeItem.bar)) {
-                  hostBar = gch.activeItem.bar
-                  return hostBar
+                  return recordHostBar(gch.activeItem.bar)
                 }
               }
             }
@@ -433,19 +445,17 @@ BarWidget {
   property bool tailscaleRunning: false
   property bool syncthingRunning: false
   property int serviceProbeRevision: 0
-
-  readonly property bool bingWallpaperRunning: {
-    var _rev = root.serviceProbeRevision
-    return root.isPluginRunning("io.github.odessa2.bing-wallpaper")
-  }
+  property bool bingWallpaperRunning: false
 
   Connections {
     target: {
       var hb = root.findHostBar()
-      return (hb && hb.shell) ? hb.shell.pluginRegistry : (root.bar && root.bar.shell ? root.bar.shell.pluginRegistry : null)
+      var shellObj = (hb && hb.shell) ? hb.shell : (root.bar ? root.bar.shell : null)
+      return (shellObj && shellObj.pluginRegistry) ? shellObj.pluginRegistry : null
     }
     ignoreUnknownSignals: true
     function onPluginsChanged() {
+      root.bingWallpaperRunning = root.isPluginRunning("io.github.odessa2.bing-wallpaper")
       root.serviceProbeRevision++
     }
   }
@@ -482,6 +492,7 @@ BarWidget {
       if (!serviceProbeProcess.running) {
         serviceProbeProcess.running = true
       }
+      root.bingWallpaperRunning = root.isPluginRunning("io.github.odessa2.bing-wallpaper")
       root.serviceProbeRevision++
     }
   }
@@ -1058,6 +1069,7 @@ BarWidget {
 
   Component.onCompleted: {
     Qt.callLater(function() {
+      root.bingWallpaperRunning = root.isPluginRunning("io.github.odessa2.bing-wallpaper")
       var s = root.resolvePluginSettings("io.github.odessa2.bing-wallpaper")
       if (s && s.market) {
         root.syncBingWallpaperConfigFile(s)
