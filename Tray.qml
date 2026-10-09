@@ -417,14 +417,6 @@ BarWidget {
     var title = item ? String(item.title || "").toLowerCase() : ""
     var tooltip = item ? String(item.tooltipTitle || "").toLowerCase() : ""
 
-    // 原生彩色应用图标白名单：保持原生彩色，防止被 MultiEffect 强行覆色
-    if (s.indexOf("joplin") !== -1 || iid.indexOf("joplin") !== -1 || title.indexOf("joplin") !== -1) {
-      return false
-    }
-    if (s.indexOf("obsidian") !== -1 || iid.indexOf("obsidian") !== -1 || title.indexOf("obsidian") !== -1) {
-      return false
-    }
-
     // 自定义单色透明矢量应用：纳管至系统主题动态着色通道 (MultiEffect)
     if (s.indexOf("input-keyboard") !== -1 || s.indexOf("fcitx") !== -1 || s.indexOf("pinyin") !== -1 || iid.indexOf("fcitx") !== -1) {
       return true
