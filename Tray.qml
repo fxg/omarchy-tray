@@ -360,44 +360,42 @@ BarWidget {
     var s = String(icon || "").toLowerCase()
     var iid = item ? String(item.id || "").toLowerCase() : ""
     var title = item ? String(item.title || "").toLowerCase() : ""
+    var tooltip = item ? String(item.tooltipTitle || "").toLowerCase() : ""
     var pid = item && item.pluginId ? String(item.pluginId).toLowerCase() : ""
 
-    if (icon && (icon.indexOf("file://") === 0 || icon.indexOf("qrc:/") === 0 || icon.indexOf("/") !== -1)) {
-      return String(icon)
-    }
-
+    // 1. 已知外部应用 DBus 拦截并替换为单色负空间矢量
     if (s.indexOf("input-keyboard") !== -1 || (s.indexOf("keyboard") !== -1 && s.indexOf("fcitx") !== -1)) {
       return pluginIcon("fcitx-en.svg")
     }
     if (s.indexOf("fcitx-pinyin") !== -1 || s.indexOf("pinyin") !== -1) {
       return pluginIcon("fcitx-pinyin.svg")
     }
-    if (s.indexOf("clash") !== -1 || iid.indexOf("clash") !== -1 || title.indexOf("clash") !== -1) {
+    if (s.indexOf("clash") !== -1 || iid.indexOf("clash") !== -1 || title.indexOf("clash") !== -1 || tooltip.indexOf("clash") !== -1) {
       return pluginIcon("clash-verge.svg")
     }
-    if (s.indexOf("antigravity") !== -1 || iid.indexOf("antigravity") !== -1 || title.indexOf("antigravity") !== -1) {
+    if (s.indexOf("antigravity") !== -1 || iid.indexOf("antigravity") !== -1 || title.indexOf("antigravity") !== -1 || tooltip.indexOf("antigravity") !== -1) {
       return pluginIcon("antigravity.svg")
     }
-    if (s.indexOf("tailscale") !== -1 || iid.indexOf("tailscale") !== -1 || title.indexOf("tailscale") !== -1) {
+    if (s.indexOf("tailscale") !== -1 || iid.indexOf("tailscale") !== -1 || title.indexOf("tailscale") !== -1 || tooltip.indexOf("tailscale") !== -1) {
       return pluginIcon("tailscale.svg")
     }
-    if (s.indexOf("syncthing") !== -1 || iid.indexOf("syncthing") !== -1 || title.indexOf("syncthing") !== -1) {
+    if (s.indexOf("syncthing") !== -1 || iid.indexOf("syncthing") !== -1 || title.indexOf("syncthing") !== -1 || tooltip.indexOf("syncthing") !== -1) {
       return pluginIcon("syncthing.svg")
     }
-    if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
+    if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || tooltip.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
       return pluginIcon("wechat.svg")
     }
-    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1) {
+    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1 || tooltip.indexOf("telegram") !== -1) {
       return pluginIcon("telegram.svg")
     }
-    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1 || pid.indexOf("bing-wallpaper") !== -1) {
+    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || pid.indexOf("bing-wallpaper") !== -1 || s.indexOf("bing") !== -1) {
       return pluginIcon("bing-wallpaper.svg")
     }
     if (s.indexOf("agenda") !== -1 || iid.indexOf("agenda") !== -1 || pid.indexOf("agenda") !== -1) {
       return pluginIcon("agenda.svg")
     }
 
-    // 动态纳管插件的默认或自定义图标解析
+    // 2. 动态 Omarchy 插件图标解析
     if (item && item.pluginId) {
       if (item.manifest && item.manifest.barWidget && item.manifest.barWidget.icon) {
         var mfIcon = root.resolvePluginFile(item.pluginId, item.manifest.barWidget.icon)
@@ -406,6 +404,7 @@ BarWidget {
       return pluginIcon("plugin-generic.svg")
     }
 
+    // 3. 原生图标直通（文件路径、qrc 或系统图标名称）
     return String(icon || "")
   }
 
@@ -416,6 +415,7 @@ BarWidget {
     var s = String(icon || "").toLowerCase()
     var iid = item ? String(item.id || "").toLowerCase() : ""
     var title = item ? String(item.title || "").toLowerCase() : ""
+    var tooltip = item ? String(item.tooltipTitle || "").toLowerCase() : ""
 
     // 原生彩色应用图标白名单：保持原生彩色，防止被 MultiEffect 强行覆色
     if (s.indexOf("joplin") !== -1 || iid.indexOf("joplin") !== -1 || title.indexOf("joplin") !== -1) {
@@ -423,6 +423,32 @@ BarWidget {
     }
     if (s.indexOf("obsidian") !== -1 || iid.indexOf("obsidian") !== -1 || title.indexOf("obsidian") !== -1) {
       return false
+    }
+
+    // 自定义单色透明矢量应用：纳管至系统主题动态着色通道 (MultiEffect)
+    if (s.indexOf("input-keyboard") !== -1 || s.indexOf("fcitx") !== -1 || s.indexOf("pinyin") !== -1 || iid.indexOf("fcitx") !== -1) {
+      return true
+    }
+    if (s.indexOf("clash") !== -1 || iid.indexOf("clash") !== -1 || title.indexOf("clash") !== -1 || tooltip.indexOf("clash") !== -1) {
+      return true
+    }
+    if (s.indexOf("antigravity") !== -1 || iid.indexOf("antigravity") !== -1 || title.indexOf("antigravity") !== -1 || tooltip.indexOf("antigravity") !== -1) {
+      return true
+    }
+    if (s.indexOf("tailscale") !== -1 || iid.indexOf("tailscale") !== -1 || title.indexOf("tailscale") !== -1 || tooltip.indexOf("tailscale") !== -1) {
+      return true
+    }
+    if (s.indexOf("syncthing") !== -1 || iid.indexOf("syncthing") !== -1 || title.indexOf("syncthing") !== -1 || tooltip.indexOf("syncthing") !== -1) {
+      return true
+    }
+    if (s.indexOf("wechat") !== -1 || iid.indexOf("wechat") !== -1 || title.indexOf("wechat") !== -1 || tooltip.indexOf("wechat") !== -1 || s.indexOf("微信") !== -1 || title.indexOf("微信") !== -1) {
+      return true
+    }
+    if (s.indexOf("telegram") !== -1 || iid.indexOf("telegram") !== -1 || title.indexOf("telegram") !== -1 || tooltip.indexOf("telegram") !== -1) {
+      return true
+    }
+    if (s.indexOf("wallpaper") !== -1 || iid.indexOf("wallpaper") !== -1 || title.indexOf("wallpaper") !== -1 || s.indexOf("bing") !== -1) {
+      return true
     }
 
     // 动态纳管插件统一纳入单色主题动态着色通道
